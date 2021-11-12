@@ -1,0 +1,901 @@
+---
+title: "GIS Project"
+author: "Vilém Knap"
+date: "September 9, 2021"
+output: 
+  pdf_document:
+    fig_caption: yes
+header-includes:
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=8, fig.height=13) 
+```
+
+
+
+# Load packages
+
+```{r}
+library(rgdal)
+library(rgeos)
+library(tmap)
+#library(leaflet)
+library(spdep)
+```
+
+# Loading data
+
+```{r}
+## PRICE MAP
+setwd("~/DTU/3. semestr/GIS/project/price map reduced")
+# Load the output area shapefiles
+pricemap<- readOGR(".", "price map reduced")
+```
+
+#Analysis
+
+#Descrptive statistics table
+```{r}
+summary(pricemap)
+```
+
+# Plot the maps
+# Map of prices
+```{r}
+#qtm(Output.Areas, fill ="CENA")
+#tmap_options(max.categories = 50) 
+tmap_mode("view")
+tm_shape(pricemap) + tm_fill("CENA", style = "jenks", n=10, palette = "Reds" , title = "Residential land price per sq. m.", title.text.size =0.5)+ tm_borders(alpha=.25)+tm_compass()+
+tm_layout(title= "Prague, Czechia", legend.text.size = 0.5, legend.title.size = 0.5, legend.position = c("RIGHT", "BOTTOM"), frame =FALSE)
+```
+
+
+The figure above depicts the spatial distribution of residential land prices in Prague. One can see that the most valuable land is clustered arround historical city center whereas the least prices per square meter can be found on the outskirts of the cities.
+
+#Bus
+```{r}
+#qtm(Output.Areas, fill ="HUBDISTBUS")
+#tmap_options(max.categories = 50) 
+tm_shape(pricemap) + tm_fill("HUBDISTBUS", style = "order", n=20, palette = "Greens" , title = "Distance to nearest bus station (m)", title.text.size =0.5)+ tm_borders(alpha=.25)+tm_compass()+
+tm_layout(title= "Prague, Czechia", legend.text.size = 0.5, legend.title.size = 0.5, legend.position = c("RIGHT", "BOTTOM"), frame =FALSE)
+```
+
+#Metro
+```{r}
+#qtm(Output.Areas, fill ="HUBDISTMET")
+#tmap_options(max.categories = 50) 
+tm_shape(pricemap) + tm_fill("HUBDISTMET", style = "jenks", n=20, palette = "Greens" , title = "Distance to nearest metro station (m)", title.text.size =0.5)+ tm_borders(alpha=.25)+tm_compass()+
+tm_layout(title= "Prague, Czechia", legend.text.size = 0.5, legend.title.size = 0.5, legend.position = c("RIGHT", "BOTTOM"), frame =FALSE)
+```
+
+#Train
+```{r}
+#qtm(Output.Areas, fill ="HUBDISTTRA")
+#tmap_options(max.categories = 50) 
+tm_shape(pricemap) + tm_fill("HUBDISTTRA", style = "jenks", n=20, palette = "Greens" , title = "Distance to nearest train station (m)", title.text.size =0.5)+ tm_borders(alpha=.25)+tm_compass()+
+tm_layout(title= "Prague, Czechia", legend.text.size = 0.5, legend.title.size = 0.5, legend.position = c("RIGHT", "BOTTOM"), frame =FALSE)
+```
+
+#Tram
+```{r}
+#qtm(Output.Areas, fill ="HUBDISTTR2")
+#tmap_options(max.categories = 50) 
+tm_shape(pricemap) + tm_fill("HUBDISTTR2", style = "order", n=20, palette = "Greens" , title = "Distance to nearest tram station (m)", title.text.size =0.5)+ tm_borders(alpha=.25)+tm_compass()+
+tm_layout(title= "Prague, Czechia", legend.text.size = 0.5, legend.title.size = 0.5, legend.position = c("RIGHT", "BOTTOM"), frame =FALSE)
+```
+
+
+
+
+To inspect whether the distribution of the prices, without considering spatial properties, a histrogram is depicted below.
+
+```{r}
+hist(pricemap$CENA, breaks = 15, main="Price of residential areas Prague", xlab="Sq. m price of res. areas", ylab="frequency of sq. m. prices")
+```
+On the plot above we can observe that the most frequent price range is from 5000 to 10000 Czech crowns per square meter of land. The distribution of the data tends to be skewed right. To obtain bell shape curve, logarithmic transformation is applied.
+
+```{r}
+hist(log(pricemap$CENA), breaks = 15, main="Price of residential areas Prague", xlab="log of Sq. m price of res. areas", ylab="frequency of sq. m. prices")
+
+```
+
+Now the data are reasonably normally shaped. This fact will be important in the modelling section. Now lets perform the same analysis for other variables.
+
+
+```{r}
+hist((pricemap$AREA_SQ_M), breaks = 100, main="Area in sq. m.", xlab="Area in sq. m.", ylab="frequency ofArea in sq. m.")
+```
+
+
+```{r}
+hist(log(pricemap$AREA_SQ_M), breaks = 100, main="Area in sq. m.", xlab="Area in sq. m.", ylab="frequency ofArea in sq. m.")
+```
+
+
+```{r}
+hist((pricemap$HUBDISTMET), breaks = 100, main="Distribution of metro distances.", xlab="Distance to nearest metro station", ylab="frequency of metro distance")
+hist(log(pricemap$HUBDISTMET), breaks = 100, main="Distribution of log ofmetro distances.", xlab=" log. Distance to nearest metro station", ylab="frequency of metro distance")
+```
+
+
+```{r}
+hist((pricemap$HUBDISTTR2), breaks = 100, main="Distribution of tram distances.", xlab="Distance to nearest tram station", ylab="frequency of tram distance")
+hist(log(pricemap$HUBDISTTR2), breaks = 100, main="Distribution of log oftram distances.", xlab="log of Distance to nearest tram station", ylab="frequency of tram distance")
+```
+
+
+```{r}
+hist((pricemap$HUBDISTBUS), breaks = 100, main="Distribution of bus distances.", xlab="Distance to nearest bus station", ylab="frequency of bus distance")
+hist(log(pricemap$HUBDISTBUS), breaks = 100, main="Distribution of log of bus distances.", xlab=" log of Distance to nearest bus station", ylab="frequency of bus distance")
+```
+
+
+
+```{r}
+hist((pricemap$HUBDISTTRA), breaks = 100, main="Distribution of train distances.", xlab="Distance to nearest train station", ylab="frequency of train distance")
+hist(log(pricemap$HUBDISTTRA), breaks = 100, main="Distribution of log oftrain distances.", xlab="log of Distance to nearest train station", ylab="frequency of train distance")
+```
+
+By observing empirical densities of euclidean distances to nearest public transport stations, all distributions tends to be skewed right. 
+
+
+
+# Modelling
+
+First lets try simple general linear model with abovementioned variables
+```{r}
+base <- data.frame(price=pricemap$CENA, area=as.numeric(pricemap$AREA_SQ_M), bus_distance=pricemap$HUBDISTBUS, tram_distance=pricemap$HUBDISTTR2, metro_distance=pricemap$HUBDISTMET, train_distance=pricemap$HUBDISTTRA)
+```
+
+We can plot variables against each other to inspect whether there is some relationship between them
+```{r}
+pairs(base)
+```
+
+
+Distance to tram and distance to metro seems to be highly positively correlated as positive linear relationship can be observed.
+One could have expected that there will be a correlation between price and area but these variables does not seem to have linear relationship.
+
+Now lets plot the  pearson correlation matrix to quantify the linear relationship between variables.
+
+```{r}
+library(corrplot)
+M = cor(base)
+corrplot(M, method = 'number') # colorful number
+```
+
+
+We will start with the simple model without interactions and see which independent variables will be insignificant.
+To avoid multicolinearity we should choose either tram or metro in the model.
+
+```{r}
+## Devellopment of a linear model
+model0<-lm(price~area+bus_distance+tram_distance+metro_distance+train_distance,data=base)
+summary(model0)
+par(mfrow=c(2,2))
+plot(model0)
+```
+
+```{r}
+model1<-lm(log(price)~log(area)+log(bus_distance)+log(metro_distance)+log(train_distance),data=base)
+summary(model1)
+par(mfrow=c(2,2))
+plot(model0)
+```
+
+
+As only 18% percent of the variance can be explained by the model, enriching the dataset with new geographic weighting scheme is appropriate.
+
+# Investigating Spatial Autocorrelation
+
+A spatial autocorrelation measures how distance influences a particular variable. It quantifies the degree of which objects are similar to nearby objects. Variables are said to have a positive spatial autocorrelation when similar values tend to be nearer than dissimilar values. []
+
+```{r}
+library(spdep)
+```
+
+```{r}
+neighbours <- poly2nb(pricemap)
+neighbours
+```
+
+```{r}
+plot(pricemap, border = 'lightgrey')
+plot(neighbours, coordinates(pricemap), add=TRUE, col='red')
+```
+```{r}
+# Calculate the Rook's case neighbours
+neighbours2 <- poly2nb(pricemap, queen = TRUE)
+neighbours2
+```
+
+```{r}
+par(mai=c(0,0,0,0))
+plot(pricemap, border = 'lightgrey')
+## Warning in wkt(obj): CRS object has no comment
+xy <- coordinates(pricemap)
+plot(neighbours2, xy, col='red', lwd=2, add=TRUE)
+```
+```{r}
+plot(pricemap, border = 'lightgrey')
+plot(neighbours2, coordinates(pricemap), add=TRUE, col='red')
+```
+
+
+
+
+```{r}
+plot(pricemap, border = 'lightgrey')
+plot(neighbours, coordinates(pricemap), add=TRUE, col='blue')
+plot(neighbours2, coordinates(pricemap), add=TRUE, col='red')
+```
+
+
+```{r}
+wm <- nb2mat(neighbours2, style='B', zero.policy = TRUE)
+dim(wm)
+```
+
+
+
+# Running a global spatial autocorrelation
+
+```{r}
+# Convert the neighbour data to a listw object
+listw <- nb2listw(neighbours2,style="W", zero.policy = TRUE)
+```
+
+```{r}
+moran.test(pricemap$CENA,listw, zero.policy = TRUE)
+```
+As the Moran I test statistic is 0.843 and the p value is below 0.05, we can conclude, that the price of land is positively autocorrelated in Prague and the data does spatially cluster.
+
+```{r}
+moran.test(pricemap$AREA_SQ_M,listw, zero.policy = TRUE)
+```
+Regarding the area of the surface, the p value is above 0.05, so we can conclude that there is no significant spatial clustering of the data.
+
+```{r}
+moran.test(pricemap$HUBDISTBUS,listw, zero.policy = TRUE)
+```
+
+```{r}
+moran.test(pricemap$HUBDISTMET,listw, zero.policy = TRUE)
+```
+
+#Train
+```{r}
+moran.test(pricemap$HUBDISTTRA,listw, zero.policy = TRUE)
+```
+
+#Tram
+```{r}
+moran.test(pricemap$HUBDISTTR2,listw, zero.policy = TRUE)
+```
+
+
+
+#Running a local spatial autocorrelation
+
+A plot of spatial data against its spatially lagged values, augmented by reporting the summary of
+influence measures for the linear relationship between the data and the lag. If zero policy is TRUE,
+such observations are also marked if they occur.
+```{r}
+# creates a moran plot
+moran_price <- moran.plot(pricemap$CENA,listw, zero.policy = TRUE)
+```
+
+```{r}
+# creates a moran plot
+moran_area <- moran.plot(pricemap$AREA_SQ_M,listw, zero.policy = TRUE)
+```
+
+```{r}
+# creates a moran plot
+moran_area <- moran.plot(pricemap$HUBDISTBUS,listw, zero.policy = TRUE)
+```
+
+```{r}
+# creates a moran plot
+moran_area <- moran.plot(pricemap$HUBDISTMET,listw, zero.policy = TRUE)
+```
+
+```{r}
+# creates a moran plot
+moran_area <- moran.plot(pricemap$HUBDISTTR2,listw, zero.policy = TRUE)
+```
+
+```{r}
+# creates a moran plot
+moran_area <- moran.plot(pricemap$HUBDISTTRA,listw, zero.policy = TRUE)
+```
+
+#All in one figure
+```{r}
+par(mfrow=c(3,2))
+moran_price <- moran.plot(pricemap$CENA,listw, zero.policy = TRUE)
+moran.plot(pricemap$AREA_SQ_M,listw, zero.policy = TRUE)
+moran.plot(pricemap$HUBDISTBUS,listw, zero.policy = TRUE)
+moran.plot(pricemap$HUBDISTMET,listw, zero.policy = TRUE)
+moran.plot(pricemap$HUBDISTTR2,listw, zero.policy = TRUE)
+moran.plot(pricemap$HUBDISTTRA,listw, zero.policy = TRUE)
+```
+
+On the plot we can observe, that the majority of neighbouring observations has the value of price clustered arround 10 000 CZK per square meters.
+
+
+```{r}
+# creates a local moran output
+local.price <- localmoran(x = pricemap$CENA,
+listw)
+```
+
+```{r}
+# binds results to our polygon shapefile
+moran.map <- cbind(pricemap, local.price)
+# maps the results
+tm_shape(moran.map) + tm_fill(col = "Ii", style = "quantile",
+title = "local moran statistic")
+```
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.price <-NaRV.omit(local.price)
+### to create LISA cluster map ###
+quadrant.price <- vector(mode="numeric",length=nrow(local.price))
+# centers the variable of interest around its mean
+m.price <- pricemap$CENA - mean(pricemap$CENA)
+# centers the local Moran's around the mean
+m.local.price <- local.price[,1] - mean(local.price[,1])
+# significance threshold
+signif.price <- 0.1
+# builds a data quadrant
+quadrant.price[m.price >0 & m.local.price>0] <- 4
+quadrant.price[m.price <0 & m.local.price<0] <- 1
+quadrant.price[m.price <0 & m.local.price>0] <- 2
+quadrant.price[m.price >0 & m.local.price<0] <- 3
+quadrant.price[local.price[,5]>signif.price] <- 0
+
+# plot in r
+brks <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas, main="Spatial distribution of local moran statistics of price",border="lightgray",col=colors[findInterval(quadrant.price,brks,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+```
+ On the figure we can observe that there are statistically significant areas with clustered land prices.
+
+#Area
+```{r}
+# creates a local moran output
+local.area <- localmoran(x = pricemap$AREA_SQ_M,
+listw)
+```
+
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.area <-NaRV.omit(local.area)
+### to create LISA cluster map ###
+quadrant.area <- vector(mode="numeric",length=nrow(local.area))
+# centers the variable of interest around its mean
+m.area<- pricemap$AREA_SQ_M - mean(pricemap$AREA_SQ_M)
+# centers the local Moran's around the mean
+m.local.area <- local.area[,1] - mean(local.area[,1])
+# significance threshold
+signif.area <- 0.1
+# builds a data quadrant
+quadrant.area[m.area >0 & m.local.area>0] <- 4
+quadrant.area[m.area <0 & m.local.area<0] <- 1
+quadrant.area[m.area <0 & m.local.area>0] <- 2
+quadrant.area[m.area >0 & m.local.area<0] <- 3
+quadrant.area[local.area[,5]>signif.area] <- 0
+# plot in r
+brks.area <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas,main="Spatial distribution of local moran statistics of area",border="lightgray",col=colors[findInterval(quadrant.area,brks.area,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+``` 
+ 
+#Bus
+c
+
+
+```{r}
+# creates a local moran output
+local.bus <- localmoran(x = pricemap$HUBDISTBUS,
+listw)
+```
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.bus <-NaRV.omit(local.bus)
+### to create LISA cluster map ###
+quadrant.bus <- vector(mode="numeric",length=nrow(local.bus))
+# centers the variable of interest around its mean
+m.qualification.bus <- pricemap$HUBDISTBUS - mean(pricemap$HUBDISTBUS)
+# centers the local Moran's around the mean
+m.local.bus <- local.bus[,1] - mean(local.bus[,1])
+# significance threshold
+signif.bus <- 0.1
+# builds a data quadrant
+quadrant.bus[m.qualification.bus >0 & m.local.bus>0] <- 4
+quadrant.bus[m.qualification.bus <0 & m.local.bus<0] <- 1
+quadrant.bus[m.qualification.bus <0 & m.local.bus>0] <- 2
+quadrant.bus[m.qualification.bus >0 & m.local.bus<0] <- 3
+quadrant.bus[local.bus[,5]>signif] <- 0
+# plot in r
+brks.bus <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas,main="Spatial distribution of local moran statistics of bus distacne",border="lightgray",col=colors[findInterval(quadrant.bus,brks.bus,all.inside=FALSE)])
+lines(Bus.lines)
+points(Bus.Stops)
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+legend("topleft",legend=c("Bus lines","Bus stops"),lty = c(1,NA),pch=c(NA,'o'),
+       col = c("black"),
+       lwd = 2,bty="n")
+``` 
+
+#Metro
+```{r}
+# creates a local moran output
+local.metro <- localmoran(x = pricemap$HUBDISTMET,
+listw)
+```
+# Metro lines and stops
+```{r}
+setwd("~/DTU/3. semestr/GIS/project/metro lines")
+# Load the output area shapefiles
+Metro.lines<- readOGR(".", "metro lines")
+setwd("~/DTU/3. semestr/GIS/project/metro stops")
+# Load the output area shapefiles
+Metro.Stops<- readOGR(".", "metro stops")
+```
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.metro <-NaRV.omit(local.metro)
+### to create LISA cluster map ###
+quadrant.metro <- vector(mode="numeric",length=nrow(local.metro))
+# centers the variable of interest around its mean
+m.qualification.metro <- pricemap$HUBDISTMET - mean(pricemap$HUBDISTMET)
+# centers the local Moran's around the mean
+m.local.metro <- local.metro[,1] - mean(local.metro[,1])
+# significance threshold
+signif.metro <- 0.1
+# builds a data quadrant
+quadrant.metro[m.qualification.metro >0 & m.local.metro>0] <- 4
+quadrant.metro[m.qualification.metro <0 & m.local.metro<0] <- 1
+quadrant.metro[m.qualification.metro <0 & m.local.metro>0] <- 2
+quadrant.metro[m.qualification.metro >0 & m.local.metro<0] <- 3
+quadrant.metro[local.metro[,5]>signif.metro] <- 0
+# plot in r
+brks.metro <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas,main="Spatial distribution of local moran statistics of metro distance",border="lightgray",col=colors[findInterval(quadrant.metro,brks.metro,all.inside=FALSE)])
+lines(Metro.lines)
+points(Metro.Stops)
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+legend("topleft",legend=c("Metro lines","Metro stops"),lty = c(1,NA),pch=c(NA,'o'),
+       col = c("black"),
+       lwd = 2,bty="n")
+``` 
+
+#Train
+# Train lines and stops
+```{r}
+setwd("~/DTU/3. semestr/GIS/project/train lines")
+# Load the output area shapefiles
+Train.lines<- readOGR(".", "train lines")
+setwd("~/DTU/3. semestr/GIS/project/train stops Prague only")
+# Load the output area shapefiles
+Train.Stops<- readOGR(".", "train stops Prague only")
+```
+
+
+```{r}
+# creates a local moran output
+local.train <- localmoran(x = pricemap$HUBDISTTRA,
+listw)
+```
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.train <-NaRV.omit(local.train)
+### to create LISA cluster map ###
+quadrant.train <- vector(mode="numeric",length=nrow(local.train))
+# centers the variable of interest around its mean
+m.qualification.train <- pricemap$HUBDISTTRA - mean(pricemap$HUBDISTTRA)
+# centers the local Moran's around the mean
+m.local.train <- local.train[,1] - mean(local.train[,1])
+# significance threshold
+signif.train <- 0.1
+# builds a data quadrant
+quadrant.train[m.qualification.train >0 & m.local.train>0] <- 4
+quadrant.train[m.qualification.train <0 & m.local.train<0] <- 1
+quadrant.train[m.qualification.train <0 & m.local.train>0] <- 2
+quadrant.train[m.qualification.train >0 & m.local.train<0] <- 3
+quadrant.train[local.train[,5]>signif.train] <- 0
+# plot in r
+brks.train <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas,main="Spatial distribution of local moran statistics of train distance",border="lightgray",col=colors[findInterval(quadrant.train,brks.train,all.inside=FALSE)])
+lines(Train.lines)
+points(Train.Stops)
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+legend("topleft",legend=c("Train lines","Train stations"),lty = c(1,NA),pch=c(NA,'o'),
+       col = c("black"),
+       lwd = 2,bty="n")
+``` 
+
+
+#Tram
+# Tram lines and stops
+```{r}
+setwd("~/DTU/3. semestr/GIS/project/tram lines")
+# Load the output area shapefiles
+Tram.lines<- readOGR(".", "tram lines")
+setwd("~/DTU/3. semestr/GIS/project/tram stops")
+# Load the output area shapefiles
+Tram.Stops<- readOGR(".", "tram stops")
+```
+
+```{r}
+# creates a local moran output
+local.tram <- localmoran(x = Output.Areas$HUBDISTTR2,
+listw)
+```
+
+
+```{r}
+#remove NAs from local moran statistic
+library(IDPmisc)
+local.tram <-NaRV.omit(local.tram)
+### to create LISA cluster map ###
+quadrant.tram <- vector(mode="numeric",length=nrow(local.tram))
+# centers the variable of interest around its mean
+m.qualification.tram <- pricemap$HUBDISTTR2 - mean(pricemap$HUBDISTTR2)
+# centers the local Moran's around the mean
+m.local.tram <- local[,1] - mean(local.tram[,1])
+# significance threshold
+signif.tram <- 0.1
+# builds a data quadrant
+quadrant.tram[m.qualification.tram >0 & m.local.tram>0] <- 4
+quadrant.tram[m.qualification.tram <0 & m.local.tram<0] <- 1
+quadrant.tram[m.qualification.tram <0 & m.local.tram>0] <- 2
+quadrant.tram[m.qualification.tram >0 & m.local.tram<0] <- 3
+quadrant.tram[local.tram[,5]>signif.tram] <- 0
+# plot in r
+brks.tram <- c(0,1,2,3,4)
+colors <- c("white","blue",rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),"red")
+plot(Output.Areas,main="Spatial distribution of local moran statistics of tram distance",border="lightgray",col=colors[findInterval(quadrant.tram,brks.tram,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+lines(Tram.lines)
+points(Tram.Stops)
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+legend("topleft",legend=c("Tram lines","Tram stations"),lty = c(1,NA),pch=c(NA,'o'),
+       col = c("black"),
+       lwd = 2,bty="n")
+``` 
+
+#Putting together
+```{r}
+par(mfrow=c(3,2))
+
+plot(pricemap, main="Spatial distribution of local moran statistics of price",border="lightgray",col=colors[findInterval(quadrant.price,brks,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+
+plot(pricemap,main="Spatial distribution of local moran statistics of area",border="lightgray",col=colors[findInterval(quadrant.area,brks.area,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+
+plot(pricemap,main="Spatial distribution of local moran statistics of bus distacne",border="lightgray",col=colors[findInterval(quadrant.bus,brks.bus,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+
+plot(pricemap,main="Spatial distribution of local moran statistics of metro distance",border="lightgray",col=colors[findInterval(quadrant.metro,brks.metro,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+
+plot(pricemap,main="Spatial distribution of local moran statistics of train distance",border="lightgray",col=colors[findInterval(quadrant.train,brks.train,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+
+plot(pricemap,main="Spatial distribution of local moran statistics of tram distance",border="lightgray",col=colors[findInterval(quadrant.tram,brks.tram,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+```
+
+```{r}
+plot(pricemap, main="Spatial distribution of local moran statistics of price",border="lightgray",col=colors[findInterval(quadrant.price,brks,all.inside=FALSE)])
+box()
+legend("bottomleft",legend=c("insignificant","low-low","low-high","high-low","high-high"),
+fill=colors,bty="n")
+```
+
+#OLS regression
+```{r}
+ols <- lm(pricemap$CENA ~ pricemap$AREA_SQ_M +
+pricemap$HUBDISTBUS+pricemap$HUBDISTMET+pricemap$HUBDISTTRA+pricemap$HUBDISTTR2)
+summary(ols)
+```
+
+```{r}
+ols2 <- lm(Output.Areas$CENA ~ Output.Areas$AREA_SQ_M +
+Output.Areas$HUBDISTMET +Output.Areas$HUBDISTTR2)
+summary(ols2)
+```
+
+```{r}
+library(xtable)
+xtable(summary(ols2))
+```
+
+
+```{r}
+library(xtable)
+xtable(summary(ols2))
+```
+
+```{r}
+library(apsrtable)
+apsrtable(ols)
+```
+
+```{r}
+AIC(ols)
+AIC(ols2)
+```
+
+
+# Geographically weighted regression.
+Geographically weighted regression is a multivariate model that is taking into account non-stationarity across space. As the coefficients in GWR may vary across the inspected area, the method is an adequate tool to analyse local properties of the dependent variable.
+
+
+
+```{r}
+library(GWmodel)
+library(spdep)
+library(sp)
+library(tmap)
+library(rgdal)
+library(RColorBrewer)
+
+```
+
+
+```{r}
+pricemap$CENA<-as.double(pricemap$CENA) 
+pricemap$AREA_SQ_M<-as.double(pricemap$AREA_SQ_M) 
+```
+
+Before running the GWR model, it is neccesary to calculate a kernel bandwith. 
+```{r}
+#Bisquare kernel
+bw.gwr.1 <-bw.gwr(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                    HUBDISTTR2, data = pricemap,
+                  approach = "AICc", kernel = "bisquare", adaptive = TRUE)
+
+bw.gwr.cv <-bw.gwr(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                    HUBDISTTR2, data = pricemap,
+                  approach = "CV", kernel = "bisquare", adaptive = TRUE)
+bw.gwr.cv
+```
+
+```{r}
+gwr.res <- gwr.basic(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                     HUBDISTTR2, data = pricemap,
+                     bw = bw.gwr.1,kernel = "bisquare", adaptive = TRUE, F123.test = FALSE)
+
+
+print(gwr.res)
+summary(gwr.res$SDF$Local_R2)
+```
+
+#Inspecting different kernels
+```{r}
+
+#Gaussian
+bw.gwr.gauss <-bw.gwr(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                        HUBDISTTR2, data = pricemap,
+                      approach = "AICc", kernel = "gaussian", adaptive = TRUE)
+
+gwr.gauss <- gwr.basic(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                         HUBDISTTR2, data = pricemap,
+                       bw = bw.gwr.1,kernel = "gaussian", adaptive = TRUE, F123.test = FALSE)
+
+summary(gwr.gauss$SDF$Local_R2)
+```
+
+```{r}
+
+#Exponential
+bw.gwr.exp <-bw.gwr(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                      HUBDISTTR2, data = pricemap,
+                    approach = "AICc", kernel = "exponential", adaptive = TRUE)
+
+gwr.exp <- gwr.basic(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                       HUBDISTTR2, data = pricemap,
+                     bw = bw.gwr.1,kernel = "exponential", adaptive = TRUE, F123.test = FALSE)
+
+summary(gwr.exp$SDF$Local_R2)
+```
+
+```{r}
+#Tri-cube
+
+bw.gwr.tricube <-bw.gwr(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                          HUBDISTTR2, data = pricemap,
+                        approach = "AICc", kernel = "tricube", adaptive = TRUE)
+
+gwr.tricube <- gwr.basic(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                           HUBDISTTR2, data = pricemap,
+                         bw = bw.gwr.1,kernel = "tricube", adaptive = TRUE, F123.test = FALSE)
+
+summary(gwr.tricube$SDF$Local_R2)
+```
+
+#bisquare has the lowest R2 median
+
+```{r}
+#Inspecting colinearity
+gwr.collin <- gwr.collin.diagno(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                                  HUBDISTTR2, data = pricemap, bw.gwr.1, kernel="bisquare",
+                  adaptive=FALSE, p=2, theta=0, longlat=F)
+
+summary(gwr.collin$local_CN)
+```
+
+```{r}
+#Robust GWR working
+rgwr.res <- gwr.robust(CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                         HUBDISTTR2, data = pricemap,
+                       bw = bw.gwr.1,kernel = "bisquare", adaptive = TRUE, F123.test = TRUE)
+```
+
+```{r}
+#Local compensated Ridge
+library("car")
+lm.global <- lm (CENA ~ AREA_SQ_M + HUBDISTBUS + HUBDISTMET + HUBDISTTRA +
+                   HUBDISTTR2, data = pricemap)
+
+vif(lm.global)
+lcrm2.bw <-bw.gwr.lcr(CENA ~ AREA_SQ_M + HUBDISTBUS+ HUBDISTMET + HUBDISTTRA +
+                          HUBDISTTR2 , data = pricemap,kernel = "bisquare", adaptive = TRUE)
+
+lcrm2 <- gwr.lcr(CENA ~ AREA_SQ_M + HUBDISTBUS+ HUBDISTMET + HUBDISTTRA +
+                     HUBDISTTR2 , data = pricemap, bw=lcrm2.bw, kernel="bisquare", adaptive=TRUE)
+
+
+summary(gwr.lcr$SDF$Local_CN)
+```
+
+#Reducing basic GWR model
+```{r}
+basic_no_train_bus.bw<- bw.gwr(CENA ~ AREA_SQ_M +  HUBDISTMET + 
+                                  HUBDISTTR2 , data = pricemap, kernel = "bisquare", adaptive = TRUE)
+basic_no_train_bus<-gwr.basic(CENA ~ AREA_SQ_M +  HUBDISTMET +  
+                              HUBDISTTR2, data = pricemap,
+                            bw = basic_no_train_bus.bw,kernel = "bisquare", adaptive = TRUE, F123.test = FALSE)
+print(basic_no_train_bus)
+```
+
+```{r}
+#robust gwr
+robust_no_train_bus.bw<- bw.gwr(CENA ~ AREA_SQ_M +  HUBDISTMET + 
+                                 HUBDISTTR2 , data = pricemap, kernel = "bisquare", adaptive = TRUE)
+robust_no_train_bus<-gwr.robust(CENA ~ AREA_SQ_M +  HUBDISTMET +  
+                                HUBDISTTR2, data = pricemap,
+                              bw = basic_no_train_bus.bw,kernel = "bisquare", adaptive = TRUE, F123.test = FALSE)
+print(robust_no_train_bus)
+```
+Lower R square, staying with basic model.
+
+```{r}
+#log transformation
+log_basic_no_train_bus.bw<- bw.gwr(log(CENA) ~ AREA_SQ_M +  HUBDISTMET + 
+                                 HUBDISTTR2 , data = pricemap, kernel = "bisquare", adaptive = TRUE)
+
+log_basic_no_train_bus<-gwr.basic(log(CENA) ~ AREA_SQ_M +  HUBDISTMET +  
+                                HUBDISTTR2, data = pricemap,
+                              bw = log_basic_no_train_bus.bw,kernel = "bisquare", adaptive = TRUE, F123.test = FALSE)
+
+print(log_basic_no_train_bus)
+```
+Not good, basic gwr still performs the best
+
+```{r}
+results <-as.data.frame(basic_no_train_bus$SDF)
+names(results)
+
+summary(results$Local_R2)
+gwr.map <- cbind(data, as.matrix(results))
+```
+
+```{r}
+mapRes <- tm_shape(gwr.map) + tm_fill("residual", n = 12, style = "jenks", palette = "Reds",
+                                     title = "Residuals") +
+  tm_layout(title= "Residuals sp. distr.", legend.text.size = 0.6, legend.title.size = 0.6, legend.position = c("RIGHT", "TOP"), frame =FALSE)
+
+mapR2 <- tm_shape(gwr.map) + tm_fill("Local_R2", n = 12, style = "jenks", palette = "Reds",
+                                    title = "Local R-square") +
+  tm_layout(title= "Local R2 sp. distr.", legend.text.size = 0.6, legend.title.size = 0.6, legend.position = c("RIGHT", "TOP"), frame =FALSE)
+```
+
+```{r}
+print(mapRes)
+print(mapR2)
+```
+
+```{r}
+#mapping coefficients
+
+map1 <- tm_shape(gwr.map) + tm_fill("AREA_SQ_M", n = 12, style = "jenks", palette = "Reds",
+                                    title = "Area coefficient") +
+  tm_layout(title= "Area coeff. sp. distr.", legend.text.size = 0.6, legend.title.size = 0.6, legend.position = c("RIGHT", "TOP"), frame =FALSE)
+
+map2 <- tm_shape(gwr.map) + tm_fill("HUBDISTMET", n = 12, style = "jenks", palette = "Reds",
+                                    title = "Metro coefficient") +
+  tm_layout(title= "Metro stop distance coeff. sp. distr.", legend.text.size = 0.6, legend.title.size = 0.6, legend.position = c("RIGHT", "TOP"), frame =FALSE)
+
+map3 <- tm_shape(gwr.map) + tm_fill("HUBDISTTR2",  style = "jenks", n=12,palette = "Reds",
+                                    title = "Tram coefficient") +
+  tm_layout(title= "Tram stop distance coeff. sp. distr.", legend.text.size = 0.6, legend.title.size = 0.6, legend.position = c("RIGHT", "TOP"), frame =FALSE)
+```
+
+```{r}
+print(map1)
+print(map2)
+print(map3)
+```
+Diffrent style maps as the tmap sometimes does not plot the negative values
+
+```{r}
+mypalette.10 <- brewer.pal(10, "Spectral")
+spplot(basic_no_train_bus$SDF, "HUBDISTMET", key.space = "right",
+          
+            col.regions = mypalette.10, at = c(-45,-25,-10,-2,-1,0,1,2,10,30),
+         
+            main = "GWR coefficient estimates for Metro distance",
+          
+            sp.layout = map.layout)
+```
+
+```{r}
+print(spplot(basic_no_train_bus$SDF, "HUBDISTTR2", key.space = "right",
+          
+            col.regions = mypalette.10, at = c(-45,-25,-10,-2,-1,0,1,2,10,30),
+         
+            main = "GWR coefficient estimates for Tram distance",
+          
+            sp.layout = map.layout))
+```
